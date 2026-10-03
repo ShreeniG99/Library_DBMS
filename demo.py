@@ -32,6 +32,32 @@ def integrity_demo(conn):
         print(" ", str(e).strip().replace("\n", "\n  "))
 
 
+def delete_rules_demo(conn):
+    print("\n=== Delete rules demo (each runs in a transaction that is rolled back) ===")
+    with conn.cursor() as cur:
+        try:
+            cur.execute("DELETE FROM publisher WHERE publisher_id = %s", (1,))
+            print("UNEXPECTED: publisher deleted")
+        except errors.ForeignKeyViolation as e:
+            print("book->publisher (no cascade): delete publisher 1 rejected:")
+            print(" ", str(e).splitlines()[1] if "\n" in str(e) else str(e))
+        conn.rollback()
+        isbn = "9780133970777"
+        cur.execute("SELECT COUNT(*) FROM book_copy WHERE isbn = %s", (isbn,))
+        before = cur.fetchone()[0]
+        cur.execute("DELETE FROM book WHERE isbn = %s", (isbn,))
+        cur.execute("SELECT COUNT(*) FROM book_copy WHERE isbn = %s", (isbn,))
+        after = cur.fetchone()[0]
+        print(f"book_copy->book (CASCADE): deleting book {isbn}: copies {before} -> {after}")
+        conn.rollback()
+        try:
+            cur.execute("INSERT INTO book_copy VALUES (%s, %s, %s)", (isbn, 1, "available"))
+            print("UNEXPECTED: duplicate composite key accepted")
+        except errors.UniqueViolation:
+            print("Composite PK: duplicate (isbn, barcode_no) rejected")
+        conn.rollback()
+
+
 def queries_demo(conn):
     print("\n=== Demo queries ===")
     with conn.cursor() as cur:
@@ -40,10 +66,11 @@ def queries_demo(conn):
              """SELECT b.title, b.price, p.name AS publisher
                 FROM book b JOIN publisher p ON p.publisher_id = b.publisher_id
                 ORDER BY b.title""")
-        # isbn and the rows to count are both in book_copy -> no join needed
-        show(cur, "2. Aggregate: copies per book (book_copy only, grouped by isbn)",
-             """SELECT isbn, COUNT(*) AS copies
-                FROM book_copy GROUP BY isbn ORDER BY copies DESC, isbn""")
+        # copy counts come from book_copy, but title lives in book -> JOIN needed
+        show(cur, "2. Aggregate: copies per book (with title)",
+             """SELECT b.isbn, b.title, COUNT(c.barcode_no) AS copies
+                FROM book b JOIN book_copy c ON c.isbn = b.isbn
+                GROUP BY b.isbn, b.title ORDER BY copies DESC, b.title""")
         # category and price are both in book -> no join needed
         show(cur, "3. Filter: Databases books costing more than 80",
              """SELECT title, category, price FROM book
@@ -53,4 +80,5 @@ def queries_demo(conn):
 if __name__ == "__main__":
     with get_connection() as conn:
         integrity_demo(conn)
+        delete_rules_demo(conn)
         queries_demo(conn)

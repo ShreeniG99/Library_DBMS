@@ -28,6 +28,6 @@ python demo.py     # FK-violation demo + 3 queries
 - **FK violation demo:** inserting a copy with isbn `0000000000000` raises `ForeignKeyViolation`
   ("Key (isbn)=... is not present in table book"), so the DB itself prevents orphan rows,
   independent of application code.
-- **Joins:** only query 1 joins (title/price in `book`, publisher name in `publisher`). Copies per
-  book groups `book_copy.isbn` alone; the category/price filter reads only `book`.
+- **Joins:** queries 1 and 2 join (title/price in `book`, publisher name in `publisher`). Copies per
+  book needs title (in `book`) and counts from `book_copy`, so it joins too; only the category/price filter needs no join (all columns in `book`).
 - **Security:** credentials via env vars; all values passed as query parameters (no string formatting).
