@@ -3,6 +3,12 @@
 Simplified subset of the library ER diagram: `publisher`, `book`, `book_copy`.
 (ISA user hierarchy, ternary Issue relationship and the Author M:N junction are out of scope.)
 
+## ER diagram
+Full ER diagram of the library system (rotated and brightened; the drawing itself is unchanged).
+This project implements the Publisher, Book and Book_copy part of it.
+
+![Library ER diagram](docs/er_diagram.png)
+
 ## Run
 ```bash
 pip install -r requirements.txt
