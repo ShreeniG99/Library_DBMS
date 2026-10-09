@@ -14,4 +14,4 @@ def create_tables(conn):
 if __name__ == "__main__":
     with connection() as conn:
         create_tables(conn)
-    print("Tables created: publisher, book, book_copy, library_user, staff, issue")
+    print("Tables created: publisher, book, book_copy")

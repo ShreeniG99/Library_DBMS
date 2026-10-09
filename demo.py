@@ -37,21 +37,15 @@ def integrity_demo(conn):
     expect_error(conn, "book_copy with a non-existent isbn", errors.ForeignKeyViolation,
                  "INSERT INTO book_copy (isbn, barcode_no, status) VALUES (%s, %s, %s)",
                  ("0000000000000", 1, "available"))
-    expect_error(conn, "issue of a copy that does not exist", errors.ForeignKeyViolation,
-                 "INSERT INTO issue (issue_id, user_id, staff_id, isbn, barcode_no, due_date)"
-                 " VALUES (%s, %s, %s, %s, %s, CURRENT_DATE + 14)",
-                 (99, 3, 1, "9780133970777", 9))   # book exists, copy 9 does not
+    expect_error(conn, "book with a non-existent publisher", errors.ForeignKeyViolation,
+                 "INSERT INTO book (isbn, title, publisher_id) VALUES (%s, %s, %s)",
+                 ("9999999999999", "Orphan Book", 99))
     expect_error(conn, "duplicate (isbn, barcode_no)", errors.UniqueViolation,
                  "INSERT INTO book_copy (isbn, barcode_no, status) VALUES (%s, %s, %s)",
                  ("9780133970777", 1, "available"))
-    expect_error(conn, "second open loan of a copy already out", errors.UniqueViolation,
-                 "INSERT INTO issue (issue_id, user_id, staff_id, isbn, barcode_no, due_date)"
-                 " VALUES (%s, %s, %s, %s, %s, CURRENT_DATE + 14)",
-                 (99, 4, 1, "9781492056355", 1))   # copy 1 of Fluent Python is out
-    expect_error(conn, "due date before issue date", errors.CheckViolation,
-                 "INSERT INTO issue (issue_id, user_id, staff_id, isbn, barcode_no, due_date)"
-                 " VALUES (%s, %s, %s, %s, %s, CURRENT_DATE - 1)",
-                 (99, 4, 1, "9780134685991", 1))
+    expect_error(conn, "book with a negative price", errors.CheckViolation,
+                 "INSERT INTO book (isbn, title, price, publisher_id) VALUES (%s, %s, %s, %s)",
+                 ("9999999999999", "Bad Price", -5, 1))
 
 
 def delete_rules_demo(conn):
@@ -60,7 +54,7 @@ def delete_rules_demo(conn):
                  errors.ForeignKeyViolation,
                  "DELETE FROM publisher WHERE publisher_id = %s", (1,))
 
-    isbn = "9780134685991"  # Effective Java: has copies, never issued
+    isbn = "9780134685991"  # Effective Java: 2 copies
     with conn.cursor() as cur:
         cur.execute("SELECT COUNT(*) FROM book_copy WHERE isbn = %s", (isbn,))
         before = cur.fetchone()[0]
@@ -69,12 +63,6 @@ def delete_rules_demo(conn):
         after = cur.fetchone()[0]
     conn.rollback()
     print(f"delete book {isbn} (book_copy->book, CASCADE): copies {before} -> {after}")
-
-    # Cascade would remove copies that issue rows point at; issue has no cascade,
-    # so the whole delete is refused and loan history is protected.
-    expect_error(conn, "delete a book whose copies have loan history",
-                 errors.ForeignKeyViolation,
-                 "DELETE FROM book WHERE isbn = %s", ("9780133970777",))
 
 
 def queries_demo(conn):
@@ -121,27 +109,6 @@ def queries_demo(conn):
             LEFT JOIN book_copy c ON c.isbn = b.isbn
             WHERE c.isbn IS NULL
             ORDER BY b.title""")
-
-        # names in library_user, title in book, dates in issue -> two JOINs.
-        # issue.isbn reaches book directly; book_copy adds no needed column.
-        show(cur, "6. Issue: copies currently out, with overdue days", """
-            SELECT u.first_name, u.last_name, b.title, i.barcode_no, i.due_date,
-                   GREATEST(CURRENT_DATE - i.due_date, 0) AS days_overdue
-            FROM issue i
-            JOIN library_user u ON u.user_id = i.user_id
-            JOIN book b ON b.isbn = i.isbn
-            WHERE i.return_date IS NULL
-            ORDER BY days_overdue DESC, b.title""")
-
-        # LEFT JOIN keeps users who never borrowed; COALESCE turns their NULL sum into 0
-        show(cur, "7. LEFT JOIN + aggregate: loans and fines per user", """
-            SELECT u.user_id, u.first_name, u.last_name,
-                   COUNT(i.issue_id) AS loans,
-                   COALESCE(SUM(i.fine_amt), 0.00) AS total_fines
-            FROM library_user u
-            LEFT JOIN issue i ON i.user_id = u.user_id
-            GROUP BY u.user_id, u.first_name, u.last_name
-            ORDER BY u.user_id""")
 
 
 if __name__ == "__main__":
