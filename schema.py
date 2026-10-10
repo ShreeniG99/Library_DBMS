@@ -1,17 +1,22 @@
-"""Create all tables from schema.sql (drops and recreates them, so it is re-runnable)."""
+"""Create the tables (schema.sql) and load the sample data (data.sql).
+
+Re-runnable: schema.sql drops and recreates the tables every time.
+"""
 from pathlib import Path
 
 from db import connection
 
-SCHEMA_FILE = Path(__file__).with_name("schema.sql")
+HERE = Path(__file__).parent
 
 
-def create_tables(conn):
+def run_sql_file(conn, name):
     with conn.cursor() as cur:
-        cur.execute(SCHEMA_FILE.read_text())
+        cur.execute((HERE / name).read_text())
 
 
 if __name__ == "__main__":
     with connection() as conn:
-        create_tables(conn)
+        run_sql_file(conn, "schema.sql")
+        run_sql_file(conn, "data.sql")
     print("Tables created: publisher, book, book_copy")
+    print("Sample data loaded: 6 publishers, 9 books, 15 copies")
